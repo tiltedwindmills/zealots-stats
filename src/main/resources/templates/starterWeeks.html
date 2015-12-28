@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html lang="en">
+<body>
+    <p>Found <span th:text="${#lists.size(playerStarterMap)}">0</span> players</p>
+    <div th:each="playerStarter : ${playerStarterMap}">
+        <div class="list-group">
+            <span th:text="${playerStarter.key.name}">Player Name</span>
+            <span th:text="${playerStarter.value}">Number of Starter Weeks</span>
+        </div>
+    </div>
+</body>
+</html>

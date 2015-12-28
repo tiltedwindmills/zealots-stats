@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html lang="en">
+<body>
+
+    <div th:each="positionScore,status : ${positionScoreMap}">
+        <div class="list-group">
+            <span th:text="${positionScore.key}">Position</span>
+            <span th:text="${positionScore.value}">Score</span>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,60 @@
+# Permanently ignored file extensions
+*.diff
+*.err
+*.diag
+*.log
+*.swp
+*.sass-cache
+*.htaccess
+*.bak
+
+
+# Build ish
+target/
+bin/
+build/
+.gradle/
+*.class
+*.jar
+*.war
+*.ear
+
+
+# Eclipse junk
+.classpath
+.project
+.settings
+.springBeans
+.checkstyle
+
+# IntelliJ files
+.idea
+*.iml
+*.iws
+*.ipr
+
+
+# OS files
+.DS_Store
+Thumbs.db
+.cache
+*.sublime-project
+*.sublime-workspace
+
+
+# Folders
+.hg
+.svn
+.CVS
+
+
+# Node Package Manager
+node_modules/
+
+
+# Bower
+bower_components/
+
+
+# Project Specific
+src/main/resources/data/*
