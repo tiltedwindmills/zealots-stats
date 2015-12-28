@@ -1,0 +1,12 @@
+﻿html {
+    -ms-text-size-adjust: 100%;
+    -webkit-text-size-adjust: 100%;
+}
+
+body {
+    font-family: 'Quicksand', sans-serif;
+}
+
+.data {
+    padding-top:100px;
+}

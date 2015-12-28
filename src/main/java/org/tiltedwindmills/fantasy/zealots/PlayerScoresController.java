@@ -4,16 +4,14 @@ import static com.google.common.base.Preconditions.checkNotNull;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 
 import javax.annotation.PostConstruct;
 import javax.inject.Inject;
 
-import org.apache.commons.lang3.ObjectUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.ClassPathResource;
@@ -28,12 +26,13 @@ import org.tiltedwindmills.fantasy.mfl.model.players.PlayerScore;
 import org.tiltedwindmills.fantasy.mfl.model.players.PlayerScoresResponse;
 import org.tiltedwindmills.fantasy.mfl.model.players.PlayerScoresWrapper;
 import org.tiltedwindmills.fantasy.mfl.services.LeagueService;
+import org.tiltedwindmills.fantasy.zealots.model.PlayerScoreBreakdown;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.base.Optional;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Ordering;
 
 @Controller
@@ -61,42 +60,46 @@ public class PlayerScoresController {
     @RequestMapping("/starterWeeks/{positionName}")
     public final String starterWeeks(final @PathVariable String positionName, final Map<String, Object> model) {
 
-        final Comparator<Player> playerComparator = new Comparator<Player>() {
-
-            @Override
-            public int compare(Player o1, Player o2) {
-                return ObjectUtils.compare(o1.getName(), o2.getName());
-            }
-        };
-
-        final Map<Player, Integer> playerStarterMap = new TreeMap<>(playerComparator);
+        final List<PlayerScoreBreakdown> playerScoreBreakdowns = new ArrayList<>();
 
         final Position position = Position.fromValue(positionName);
-        if (position != position.UNKNOWN) {
+        if (position != Position.UNKNOWN) {
 
             for (int i = 1; i <= 13; i++) {
                 LOG.debug("Loading week {} for {}", i, position);
-                getPlayerScoresForWeek(playerStarterMap, position, i, getLeagueStarterLimit(position));
+                getPlayerScoresForWeek(playerScoreBreakdowns, position, i, getLeagueStarterLimit(position));
             }
         }
 
-        Ordering<Map.Entry<Player, Integer>> byMapValues = new Ordering<Map.Entry<Player, Integer>>() {
+        Ordering<PlayerScoreBreakdown> byTopFinishes = new Ordering<PlayerScoreBreakdown>() {
 
-           @Override
-           public int compare(Map.Entry<Player, Integer> left, Map.Entry<Player, Integer> right) {
-                return left.getValue().compareTo(right.getValue());
-           }
+            @Override
+            public int compare(PlayerScoreBreakdown left, PlayerScoreBreakdown right) {
+                int top12diff = right.getTop12Finishes() - left.getTop12Finishes();
+                if (top12diff != 0) {
+                    return top12diff;
+                }
+                int top24diff = right.getTop24Finishes() - left.getTop24Finishes();
+                if (top24diff != 0) {
+                    return top24diff;
+                }
+                int top36diff = right.getTop36Finishes() - left.getTop36Finishes();
+                if (top36diff != 0) {
+                    return top36diff;
+                }
+
+                return left.getName().compareTo(right.getName());
+            }
         };
 
-        List<Map.Entry<Player, Integer>> keys = Lists.newArrayList(playerStarterMap.entrySet());
-        Collections.sort(keys, byMapValues.reverse());
+        Collections.sort(playerScoreBreakdowns, byTopFinishes);
 
-        model.put("playerStarterMap", keys);
+        model.put("playerScoreBreakdowns", playerScoreBreakdowns);
         return "starterWeeks";
     }
 
 
-    private void getPlayerScoresForWeek(Map<Player, Integer> playerStarterMap, Position position, int week, int limit) {
+    private void getPlayerScoresForWeek(List<PlayerScoreBreakdown> playerScoreBreakdowns, Position position, int week, int limit) {
 
         final PlayerScoresWrapper playerScoresWrapper = getPlayerScoresFromFile(position, week);
 
@@ -114,11 +117,22 @@ public class PlayerScoresController {
                         }
                     });
 
-                    if (playerStarterMap.containsKey(player)) {
-                        playerStarterMap.put(player, playerStarterMap.get(player) + 1);
+
+                    Optional<PlayerScoreBreakdown> existingPlayerScoreBreakdown =
+                            Iterables.tryFind(playerScoreBreakdowns, new Predicate<Player>() {
+
+                        public boolean apply(Player testPlayer) {
+                            return testPlayer != null && testPlayer.getId() == playerScore.getPlayerId();
+                        }
+                    });
+
+                    if (existingPlayerScoreBreakdown.isPresent()) {
+                        existingPlayerScoreBreakdown.get().addTopFinish(i);
 
                     } else {
-                        playerStarterMap.put(player, 1);
+                        PlayerScoreBreakdown newPlayerScoreBreakdown = new PlayerScoreBreakdown(player);
+                        newPlayerScoreBreakdown.addTopFinish(i);
+                        playerScoreBreakdowns.add(newPlayerScoreBreakdown);
                     }
                 }
             }
