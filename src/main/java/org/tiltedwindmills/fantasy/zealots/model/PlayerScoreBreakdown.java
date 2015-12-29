@@ -55,4 +55,8 @@ public final class PlayerScoreBreakdown extends Player {
 
         // don't do anything if it doesn't match an above conditional.
     }
+
+    public int getGrade() {
+        return 5 * top12Finishes + 3 * top24Finishes + 1 * top36Finishes;
+    }
 }

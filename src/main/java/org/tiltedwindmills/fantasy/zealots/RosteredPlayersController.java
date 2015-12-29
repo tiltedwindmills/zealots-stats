@@ -5,8 +5,10 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.annotation.PostConstruct;
 import javax.inject.Inject;
@@ -30,13 +32,24 @@ import org.tiltedwindmills.fantasy.mfl.services.LeagueService;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.base.Optional;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 
+/**
+ * Let's figure out how many of each position were on rosters.  We'll use the weekly results export
+ * since the generic rosters will represent off-season configuration.  ( week 13 seems good since
+ * generally all the owners will still care).
+ *
+ *
+ * @author John Daniel
+ */
 @Controller
-public class WeeklyResultsController {
+public class RosteredPlayersController {
 
-    private static final Logger LOG = LoggerFactory.getLogger(WeeklyResultsController.class);
+    private static final Logger LOG = LoggerFactory.getLogger(RosteredPlayersController.class);
+
+    private static final int WEEK = 13;
 
     @Inject
     private LeagueService leagueService;
@@ -53,72 +66,80 @@ public class WeeklyResultsController {
         checkNotNull(leagueService, "leagueService cannot be null");
     }
 
+    private Set<Integer> unknownPlayers = new HashSet<>();
+
     int teamsInPlay = 0;
 
     @SuppressWarnings("unchecked")
-    @RequestMapping("/positionScoring")
-    public final String home(final Map<String, Object> model, final HttpSession session) {
+    @RequestMapping("/positionCount")
+    public final String positionCount(final Map<String, Object> model, final HttpSession session) {
 
         teamsInPlay = 0;
 
-        final Map<Position, Double> positionScoreMap = new HashMap<>();
+        final Map<Position, Integer> positionCountMap = new HashMap<>();
 
         for (League league : propertyBasedLeagues) {
-            for (int i = 1; i <= 13; i++) {
-                LOG.debug("Loading week {} for {}", i, league.getName());
-                mapWeeklyScoresForLeagueWeek(positionScoreMap, league, i);
-            }
+            LOG.debug("Loading week {} for {}", WEEK, league.getName());
+            mapPositionCountForLeague(positionCountMap, league);
         }
 
+        LOG.warn("Unknown players is : {}", unknownPlayers.toString().replace(" ", ""));
+
         model.put("teams", (double) teamsInPlay);
-        model.put("leagueCount", propertyBasedLeagues.size());
-        model.put("positionScoreMap", positionScoreMap);
+        model.put("leagueCount", (double) propertyBasedLeagues.size());
+        model.put("positionScoreMap", positionCountMap);
         return "positionStats";
     }
 
 
-    private void mapWeeklyScoresForLeagueWeek(final Map<Position, Double> positionScoreMap, final League league, int week) {
+    private void mapPositionCountForLeague(final Map<Position, Integer> positionCountMap, final League league) {
 
-        final WeeklyResultsWrapper weeklyResultsWrapper = getWeeklyResultsFromFile(league.getName(), week);
+        final WeeklyResultsWrapper weeklyResultsWrapper = getWeeklyResultsFromFile(league.getName(), WEEK);
 
         if (weeklyResultsWrapper != null && weeklyResultsWrapper.getMatchupResults() != null) {
 
             for (MatchupResults matchupResults : weeklyResultsWrapper.getMatchupResults()) {
-                loadMatchupResults(positionScoreMap, matchupResults);
+                loadMatchupResults(positionCountMap, matchupResults);
             }
         }
     }
 
-    private void loadMatchupResults(Map<Position, Double> positionScoreMap, final MatchupResults matchupResults) {
+    private void loadMatchupResults(Map<Position, Integer> positionCountMap, final MatchupResults matchupResults) {
 
         if (matchupResults != null && matchupResults.getTeams() != null) {
 
             for (TeamResultDetails teamResultDetails : matchupResults.getTeams()) {
-                loadTeamMatchupResults(positionScoreMap, teamResultDetails);
+                loadTeamMatchupResults(positionCountMap, teamResultDetails);
             }
         }
     }
 
-    private void loadTeamMatchupResults(Map<Position, Double> positionScoreMap, final TeamResultDetails teamResultDetails) {
+    private void loadTeamMatchupResults(Map<Position, Integer> positionCountMap, final TeamResultDetails teamResultDetails) {
 
         if (teamResultDetails != null) {
+        //if (teamResultDetails != null && teamResultDetails.getPlayerResults().size() == 53) {
 
             teamsInPlay++;
 
             for(final PlayerResultDetails playerResultDetails : teamResultDetails.getPlayerResults()) {
 
-                if (playerResultDetails != null && "starter".equals(playerResultDetails.getStatus())) {
+                if (playerResultDetails != null) {
 
-                    Player player = Iterables.find(players, new Predicate<Player>() {
+                    Optional<Player> player = Iterables.tryFind(players, new Predicate<Player>() {
 
                         public boolean apply(Player testPlayer) {
                             return testPlayer != null && testPlayer.getId() == playerResultDetails.getPlayerId();
                         }
                     });
 
-                    LOG.trace("Adding {} score of {} to map for {}",
-                            player.getPosition(), playerResultDetails.getScore(), player.getName());
-                    addPlayerScoreToMap(positionScoreMap, player.getPosition(), playerResultDetails.getScore());
+                    if (!player.isPresent()) {
+                        LOG.warn("Count not find player in database for ID {}", playerResultDetails.getPlayerId());
+                        unknownPlayers.add(playerResultDetails.getPlayerId());
+                    }
+                    else {
+                        LOG.trace("Incrementing {} count for {}", player.get().getPosition(), player.get().getName());
+                        incrementPositionCountInMap(positionCountMap, player.get().getPosition());
+                    }
                 }
             }
         }
@@ -150,10 +171,10 @@ public class WeeklyResultsController {
     }
 
 
-    private void addPlayerScoreToMap(Map<Position, Double> positionScoreMap, Position position, double score) {
+    private void incrementPositionCountInMap(Map<Position, Integer> positionCountMap, Position position) {
 
-        if (positionScoreMap == null) {
-            positionScoreMap = new HashMap<>();
+        if (positionCountMap == null) {
+            positionCountMap = new HashMap<>();
         }
 
         Position mappedPosition = position;
@@ -165,11 +186,11 @@ public class WeeklyResultsController {
             mappedPosition = Position.DEFENSIVE_LINEMAN;
         }
 
-        if (positionScoreMap.containsKey(mappedPosition)) {
-            positionScoreMap.put(mappedPosition, positionScoreMap.get(mappedPosition) + score);
+        if (positionCountMap.containsKey(mappedPosition)) {
+            positionCountMap.put(mappedPosition, positionCountMap.get(mappedPosition) + 1);
 
         } else {
-            positionScoreMap.put(mappedPosition, score);
+            positionCountMap.put(mappedPosition, 1);
         }
     }
 }

@@ -1,12 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
+<head th:replace="fragments/head :: head" />
 <body>
+    <div class="container">
 
-    <div th:each="positionScore,status : ${positionScoreMap}">
-        <div class="list-group">
-            <span th:text="${positionScore.key}">Position</span>
-            <span th:text="${positionScore.value}">Score</span>
-        </div>
+        <dl class="dl-horizontal">
+            <dt><a href="positionCount">Position Count</a></dt>
+            <dd>How many of each position were rostered.</dd>
+            <dt><a href="positionScoring">Position Scoring</a></dt>
+            <dd>Scoring totals per position across Zealots.</dd>
+            <dt><a href="starterWeeks/QB">Starter Weeks</a></dt>
+            <dd>Number of times a player scored in the top 12, 24, 36, etc.</dd>
+        </dl>
     </div>
 </body>
 </html>

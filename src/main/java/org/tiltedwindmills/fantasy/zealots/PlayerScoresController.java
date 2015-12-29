@@ -75,6 +75,10 @@ public class PlayerScoresController {
 
             @Override
             public int compare(PlayerScoreBreakdown left, PlayerScoreBreakdown right) {
+                int gradeDiff = right.getGrade() - left.getGrade();
+                if (gradeDiff != 0) {
+                    return gradeDiff;
+                }
                 int top12diff = right.getTop12Finishes() - left.getTop12Finishes();
                 if (top12diff != 0) {
                     return top12diff;
@@ -83,10 +87,10 @@ public class PlayerScoresController {
                 if (top24diff != 0) {
                     return top24diff;
                 }
-                int top36diff = right.getTop36Finishes() - left.getTop36Finishes();
-                if (top36diff != 0) {
-                    return top36diff;
-                }
+                //int top36diff = right.getTop36Finishes() - left.getTop36Finishes();
+                //if (top36diff != 0) {
+                //    return top36diff;
+                //}
 
                 return left.getName().compareTo(right.getName());
             }
